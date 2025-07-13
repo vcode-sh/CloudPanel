@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  cloudpanel-test:
+    image: ubuntu:24.04
+    container_name: dragonfly-installer-test
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - ./install-dragonfly-cloudpanel.sh:/root/install-dragonfly-cloudpanel.sh:ro
+      - ./test-dragonfly.sh:/root/test-dragonfly.sh:ro
+    command: >
+      bash -c "
+        apt-get update &&
+        apt-get install -y systemd wget curl php-cli php-redis redis-tools &&
+        mkdir -p /home/clp &&
+        chmod +x /root/install-dragonfly-cloudpanel.sh &&
+        chmod +x /root/test-dragonfly.sh &&
+        echo 'Test environment ready. Run: docker exec -it dragonfly-installer-test bash' &&
+        tail -f /dev/null
+      "
+    networks:
+      - dragonfly-test
+
+networks:
+  dragonfly-test:
+    driver: bridge

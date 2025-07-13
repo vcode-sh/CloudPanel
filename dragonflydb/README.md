@@ -1,351 +1,230 @@
-# How to Replace Redis with DragonflyDB on CloudPanel
+# CloudPanel DragonflyDB Installer
 
-This guide explains how to properly install DragonflyDB and configure it as a drop-in replacement for Redis on CloudPanel servers.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![OS Support](https://img.shields.io/badge/OS-Ubuntu%2022.04%2F24.04%20%7C%20Debian%2011%2F12-green.svg)
+![Architecture](https://img.shields.io/badge/Architecture-x86__64%20%7C%20ARM64-yellow.svg)
+![CloudPanel](https://img.shields.io/badge/CloudPanel-Compatible-brightgreen.svg)
 
-## Prerequisites
+**Replace Redis with DragonflyDB on CloudPanel for 25x better performance!**
 
-- CloudPanel installed on Ubuntu 22.04/24.04 or Debian 11/12
-- Root access to the server
-- Basic command line knowledge
+Automated installer script to seamlessly replace Redis with DragonflyDB on CloudPanel servers. DragonflyDB is a modern, high-performance, Redis-compatible in-memory data store that's 25x faster than Redis.
 
-## Step 1: Check System Architecture
+## 🚀 Quick Start
 
-First, determine your server's architecture:
+### One-Command Installation
 
 ```bash
-uname -m
+curl -sSL https://raw.githubusercontent.com/vcode-sh/CloudPanel/main/dragonflydb/install-dragonfly-cloudpanel.sh | sudo bash
 ```
 
-- If output is `x86_64`: You have Intel/AMD architecture
-- If output is `aarch64`: You have ARM64 architecture
-
-## Step 2: Stop and Disable Redis
-
-Before installing DragonflyDB, we need to stop the existing Redis service:
+### Alternative (Recommended for Production)
 
 ```bash
-# Check Redis status
-systemctl status redis-server
-
-# Create a backup of Redis data (if needed)
-redis-cli BGSAVE
-sleep 2
-
-# Stop and disable Redis
-systemctl stop redis-server
-systemctl disable redis-server
+wget https://raw.githubusercontent.com/vcode-sh/CloudPanel/main/dragonflydb/install-dragonfly-cloudpanel.sh
+chmod +x install-dragonfly-cloudpanel.sh
+sudo ./install-dragonfly-cloudpanel.sh
 ```
 
-## Step 3: Install DragonflyDB
-
-### For x86_64 Architecture:
+### Using Git Repository
 
 ```bash
-# Download DragonflyDB
-cd /root
-wget https://github.com/dragonflydb/dragonfly/releases/latest/download/dragonfly-x86_64.tar.gz
-
-# Extract and install
-tar -xzf dragonfly-x86_64.tar.gz
-mv dragonfly-x86_64 /usr/local/bin/dragonfly
-chmod +x /usr/local/bin/dragonfly
-rm dragonfly-x86_64.tar.gz
+git clone https://github.com/vcode-sh/CloudPanel.git
+cd CloudPanel/dragonflydb
+make install
 ```
 
-### For ARM64 Architecture:
+## 📋 What This Script Does
+
+✅ **Automatic OS & Architecture Detection** (Ubuntu 22.04/24.04, Debian 11/12, x86_64/ARM64)  
+✅ **Redis Data Backup** (optional, before migration)  
+✅ **Optimal Memory Configuration** (based on your system RAM)  
+✅ **CloudPanel Integration** (shows Redis as "Active" in Services)  
+✅ **Full Redis Compatibility** (no code changes needed)  
+✅ **Error Handling & Logging** (comprehensive error recovery)  
+✅ **Post-Installation Testing** (verifies everything works)
+
+## 🎯 Benefits
+
+| Feature | Redis | DragonflyDB |
+|---------|-------|-------------|
+| **Performance** | Baseline | **25x faster** |
+| **Memory Usage** | High | **50% less memory** |
+| **CPU Utilization** | Single-threaded | **Multi-threaded** |
+| **Compatibility** | 100% | **100% Redis compatible** |
+| **Defragmentation** | Manual | **Built-in automatic** |
+
+## 📊 System Requirements
+
+- **OS**: Ubuntu 22.04/24.04 or Debian 11/12
+- **Architecture**: x86_64 or ARM64
+- **RAM**: Minimum 2GB (4GB+ recommended)
+- **CloudPanel**: Must be installed
+- **Access**: Root privileges required
+
+## 🧪 Testing Your Installation
+
+Download and run the test script:
 
 ```bash
-# Download DragonflyDB
-cd /root
-wget https://github.com/dragonflydb/dragonfly/releases/latest/download/dragonfly-aarch64.tar.gz
-
-# Extract and install
-tar -xzf dragonfly-aarch64.tar.gz
-mv dragonfly-aarch64 /usr/local/bin/dragonfly
-chmod +x /usr/local/bin/dragonfly
-rm dragonfly-aarch64.tar.gz
+wget https://raw.githubusercontent.com/vcode-sh/CloudPanel/main/dragonflydb/test-dragonfly.sh
+chmod +x test-dragonfly.sh
+./test-dragonfly.sh
 ```
 
-## Step 4: Create DragonflyDB User and Directories
+Expected output:
+```
+DragonflyDB Installation Test
+=============================
 
-```bash
-# Create system user
-useradd -r -s /bin/false -d /var/lib/dragonfly -m dragonfly
-
-# Create directories
-mkdir -p /etc/dragonfly /var/log/dragonfly
-chown dragonfly:dragonfly /var/log/dragonfly /var/lib/dragonfly
+1. Checking DragonflyDB service... ✓ Active
+2. Checking Redis service alias... ✓ Active
+3. Checking port 6379... ✓ Listening
+4. Testing Redis CLI connection... ✓ Connected
+5. Checking DragonflyDB version... ✓ df-v1.31.0
+6. Testing PHP Redis connection... ✓ Connected
+7. Checking memory configuration... ✓ 4GB
 ```
 
-## Step 5: Create DragonflyDB Configuration
+## 🛠️ Management Commands
 
-Create the configuration file `/etc/dragonfly/dragonfly.conf`:
-
+### Basic Commands
 ```bash
-cat > /etc/dragonfly/dragonfly.conf << 'EOF'
-# DragonflyDB Configuration
-# Using flagfile format (--flag=value)
-
---bind=127.0.0.1
---port=6379
---dir=/var/lib/dragonfly
---logtostderr
---maxmemory=4gb
---dbfilename=dump
-EOF
-```
-
-**Note**: Adjust `--maxmemory` based on your server's RAM. A good rule is 25-30% of total RAM.
-
-## Step 6: Create Systemd Service
-
-Create the service file `/etc/systemd/system/dragonfly.service`:
-
-```bash
-cat > /etc/systemd/system/dragonfly.service << 'EOF'
-[Unit]
-Description=DragonflyDB In-Memory Data Store
-Documentation=https://www.dragonflydb.io/docs
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/dragonfly --flagfile=/etc/dragonfly/dragonfly.conf
-ExecStop=/bin/kill -TERM $MAINPID
-Restart=always
-RestartSec=3
-User=dragonfly
-Group=dragonfly
-
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/dragonfly /var/log/dragonfly
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-RestrictRealtime=true
-RestrictNamespaces=true
-RestrictSUIDSGID=true
-PrivateDevices=true
-ProtectHostname=true
-ProtectClock=true
-ProtectKernelLogs=true
-LockPersonality=true
-
-# Resource limits
-LimitNOFILE=65535
-LimitMEMLOCK=infinity
-
-# Performance settings
-CPUSchedulingPolicy=batch
-Nice=-5
-
-# OOM settings
-OOMScoreAdjust=-900
-
-[Install]
-WantedBy=multi-user.target
-EOF
-```
-
-## Step 7: Create Redis Compatibility Layer
-
-To ensure CloudPanel recognizes DragonflyDB as Redis:
-
-```bash
-# Create Redis service symlink
-ln -sf /etc/systemd/system/dragonfly.service /etc/systemd/system/redis-server.service
-ln -sf /etc/systemd/system/dragonfly.service /etc/systemd/system/redis.service
-
-# Create Redis CLI symlink
-ln -sf /usr/bin/redis-cli /usr/bin/dragonfly-cli
-
-# Create Redis server wrapper
-cat > /usr/local/bin/redis-server << 'EOF'
-#!/bin/bash
-# Redis compatibility wrapper for DragonflyDB
-exec /usr/local/bin/dragonfly "$@"
-EOF
-
-chmod +x /usr/local/bin/redis-server
-```
-
-## Step 8: Start and Enable DragonflyDB
-
-```bash
-# Reload systemd
-systemctl daemon-reload
-
-# Enable and start DragonflyDB
-systemctl enable dragonfly
-systemctl start dragonfly
-
-# Verify status
+# Check status
 systemctl status dragonfly
-systemctl status redis-server  # Should show the same status
+systemctl status redis-server  # Same as above
+
+# View logs
+journalctl -xeu dragonfly -f
+
+# Restart service
+systemctl restart dragonfly
+
+# Connect via CLI
+redis-cli
+127.0.0.1:6379> INFO server
 ```
 
-## Step 9: Test the Installation
-
+### Using Makefile (from repository)
 ```bash
-# Test connection
-redis-cli ping
-# Should return: PONG
+git clone https://github.com/vcode-sh/CloudPanel.git
+cd CloudPanel/dragonflydb
 
-# Check server info
-redis-cli INFO server | grep dragonfly_version
-# Should show: dragonfly_version:df-v1.31.0 (or newer)
-
-# Test basic operations
-redis-cli SET test "Hello from DragonflyDB"
-redis-cli GET test
-redis-cli DEL test
+make help        # Show all commands
+make test        # Test installation
+make status      # Show service status
+make logs        # View live logs
+make restart     # Restart service
+make uninstall   # Restore Redis
 ```
 
-## Step 10: Verify CloudPanel Integration
+## 📈 Performance Tuning
 
-Create a PHP test script to verify CloudPanel can connect:
+The script automatically configures optimal settings based on your system:
+
+| System RAM | DragonflyDB Memory | Max Connections |
+|------------|-------------------|-----------------|
+| 4GB        | 1GB               | 1000           |
+| 8GB        | 2GB               | 2000           |
+| 16GB       | 4GB               | 5000           |
+| 32GB       | 8GB               | 10000          |
+| 64GB+      | 16GB+             | 10000+         |
+
+## 🐛 Troubleshooting
+
+### CloudPanel Shows Redis as Stopped
+
+1. **Check service status:**
+   ```bash
+   systemctl is-active redis-server
+   ```
+
+2. **Clear browser cache and reload CloudPanel**
+
+3. **Restart PHP-FPM:**
+   ```bash
+   systemctl restart php*-fpm
+   ```
+
+### DragonflyDB Won't Start
 
 ```bash
-cat > /tmp/test-redis.php << 'EOF'
-<?php
-try {
-    $redis = new Redis();
-    $redis->connect('127.0.0.1', 6379);
-    echo "Connected to Redis/DragonflyDB\n";
-    echo "PING: " . $redis->ping() . "\n";
-    $redis->set('test_key', 'CloudPanel works with DragonflyDB!');
-    echo "Value: " . $redis->get('test_key') . "\n";
-    $redis->del('test_key');
-    echo "✅ All tests passed!\n";
-} catch (Exception $e) {
-    echo "❌ Error: " . $e->getMessage() . "\n";
-}
-EOF
-
-php /tmp/test-redis.php
-rm /tmp/test-redis.php
-```
-
-## Troubleshooting
-
-### If CloudPanel shows Redis as stopped:
-
-1. Check if the redis-server service is active:
-```bash
-systemctl is-active redis-server
-```
-
-2. Clear CloudPanel cache and reload the page
-
-3. Restart PHP-FPM:
-```bash
-systemctl restart php*-fpm
-```
-
-### If DragonflyDB fails to start:
-
-1. Check logs:
-```bash
+# Check detailed logs
 journalctl -xeu dragonfly.service -n 50
-```
 
-2. Verify port 6379 is not in use:
-```bash
+# Verify configuration
+/usr/local/bin/dragonfly --flagfile=/etc/dragonfly/dragonfly.conf --dry-run
+
+# Check port conflicts
 ss -tlnp | grep 6379
 ```
 
-3. Check configuration syntax:
+### PHP Can't Connect
+
 ```bash
-/usr/local/bin/dragonfly --flagfile=/etc/dragonfly/dragonfly.conf --dry-run
+# Install PHP Redis extension
+apt-get install -y php-redis
+systemctl restart php*-fpm
 ```
 
-## Performance Tuning
+## 🔙 Rollback to Redis
 
-### Memory Configuration
-
-For optimal performance, adjust memory settings based on your server:
-
-- **8GB RAM**: Set `--maxmemory=2gb`
-- **16GB RAM**: Set `--maxmemory=4gb`
-- **32GB RAM**: Set `--maxmemory=10gb`
-- **64GB+ RAM**: Set `--maxmemory=20gb` or more
-
-### Additional Optimizations
-
-Edit `/etc/dragonfly/dragonfly.conf` and add:
+If you need to revert back to Redis:
 
 ```bash
-# For high-traffic sites
---pipeline_buffer_limit=8mb
---tcp_nodelay
+# Using the uninstall feature (from repository)
+cd CloudPanel/dragonflydb
+make uninstall
 
-# For sites with many connections
---max_clients=10000
-```
-
-## Benefits of DragonflyDB over Redis
-
-- **25x faster** than Redis on modern hardware
-- **Better memory efficiency** - uses less RAM for same data
-- **Multi-threaded** - utilizes all CPU cores
-- **100% Redis compatible** - no code changes needed
-- **Built-in memory defragmentation**
-- **Better performance under high load**
-
-## Maintenance
-
-### Backup DragonflyDB data:
-```bash
-redis-cli BGSAVE
-# Backup files are in /var/lib/dragonfly/
-```
-
-### Monitor DragonflyDB:
-```bash
-# Real-time statistics
-redis-cli --stat
-
-# Memory usage
-redis-cli INFO memory
-
-# Connected clients
-redis-cli CLIENT LIST
-```
-
-### Update DragonflyDB:
-```bash
-# Stop service
-systemctl stop dragonfly
-
-# Download and install new version (follow Step 3)
-# Then restart
-systemctl start dragonfly
-```
-
-## Rollback to Redis (if needed)
-
-If you need to switch back to Redis:
-
-```bash
-# Stop DragonflyDB
+# Or manually
 systemctl stop dragonfly
 systemctl disable dragonfly
-
-# Remove symlinks
 rm /etc/systemd/system/redis-server.service
-rm /etc/systemd/system/redis.service
-
-# Reinstall and start Redis
-apt update
 apt install -y redis-server
 systemctl enable redis-server
 systemctl start redis-server
 ```
 
+## 📚 Documentation
+
+- [**Detailed Installation Guide**](dragonfly.md) - Step-by-step manual process
+- [**DragonflyDB Official Docs**](https://www.dragonflydb.io/docs) - Comprehensive documentation
+- [**CloudPanel Documentation**](https://www.cloudpanel.io/docs) - CloudPanel guides
+
+## 📁 Repository Structure
+
+```
+CloudPanel/
+└── dragonflydb/
+    ├── install-dragonfly-cloudpanel.sh  # Main installer
+    ├── test-dragonfly.sh               # Test script
+    ├── dragonfly.md                    # Detailed guide
+    ├── Makefile                        # Management commands
+    ├── README.md                       # This file
+    └── docs/                           # Additional documentation
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Reporting Issues
+
+When reporting issues, please include:
+- OS and version (`cat /etc/os-release`)
+- Architecture (`uname -m`)
+- CloudPanel version
+- Installation log (`/var/log/dragonfly-installer.log`)
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## ⭐ Support
+
+If this project helped you, please consider giving it a star on GitHub!
+
 ---
 
-**Note**: This guide is tested on CloudPanel with Ubuntu 22.04/24.04 and Debian 11/12. Always backup your data before making system changes.
+**Made with ❤️ for the CloudPanel community**
+
+*Boost your CloudPanel performance today with DragonflyDB!*
